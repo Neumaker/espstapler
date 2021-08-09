@@ -4,6 +4,8 @@
 #include <Adafruit_GFX.h>
 #include <OakOLED.h>
 #include <ESP8266WiFi.h>
+#include <WiFiClient.h>
+#include <ESP8266WebServer.h>
 #include <ESP8266mDNS.h>
 #include <WiFiUdp.h>
 #include <ArduinoOTA.h>
@@ -18,7 +20,7 @@
 #define adc A0//VCC messen 10k PullDown 330k PullUp 
 
 #define displayinterval 5000//Zeit in ms zwischen Display-Output
-#define stapletimeout 500//Zeit in ms fuer heften
+#define stapletimeout 800//Zeit in ms fuer heften
 #define triggercount 14//Anzahl der registrierten Trigger impulse (Warnsignal)
 
 unsigned long displaymillis = 0;
@@ -32,9 +34,10 @@ double voltage;
 
 OakOLED oled;
 
-const char* SSID = "iPhone von Robert Neumann";
-const char* PSK = "8094579880";
-//const char* PSK = "74858342257742483927";
+const char *ssid = "Heftkopf";
+const char *password = "87654321";
+
+ESP8266WebServer server(80);
 
 const char* Hostname;//Wert in dem der Name gespeichert wird
 String Hostnamestring = "HEFTKOPF-";//erster Teil des Hostnames (NODE-193B8F)
@@ -99,14 +102,35 @@ void setup() {
   });
   ArduinoOTA.begin();
 
+  
+
   Serial.println("Ready");
   Serial.print("IP address: ");
   Serial.println(WiFi.localIP());
+  
+  //Test init
+  motorbeep();
+  delay(25);
+  motorstop();
+  delay(25);
+  //motorforward();
+  //delay(320);
+  //motorstop();
 }
+
+/* Just a little test message.  Go to http://192.168.4.1 in a web browser
+   connected to this access point to see it.
+*/
+void handleRoot() {
+  server.send(200, "text/html", "<h1>You are connected</h1>");
+}
+
 // the loop function runs over and over again forever
 void loop() {
 
  ArduinoOTA.handle();
+
+ server.handleClient();
  
  trig=digitalRead(trigsens);
  staple=digitalRead(staplesens);
@@ -244,8 +268,8 @@ void motorbeep()
   analogWrite(MC23,45);
   delay(15);
 }
-
-void setup_wifi() {
+/*
+void setup_wifiold() {
   
   macadress = WiFi.macAddress();
   //Hostnamen erstsellen
@@ -257,7 +281,8 @@ void setup_wifi() {
   WiFi.begin(SSID, PSK);
   WiFi.hostname(Hostname);
 
-  while (WiFi.status() != WL_CONNECTED) {
+  while (WiFi.status() != WL_CONNECTED) 
+    {
         delay(500);
         Serial.print(".");
     }
@@ -275,4 +300,26 @@ void setup_wifi() {
     oled.print(SSID);
     oled.display();
     delay(1000);
+}*/
+
+void setup_wifi() {
+  
+  macadress = WiFi.macAddress();
+  //Hostnamen erstsellen
+  Hostnamestring = Hostnamestring + macadress.charAt(9) + macadress.charAt(10)+ macadress.charAt(12) + macadress.charAt(13) + macadress.charAt(15) + macadress.charAt(16);
+
+  Hostname = Hostnamestring.c_str();//Hostname von String in const char umwandeln (wegen OTA)
+
+  Serial.println();
+  Serial.print("Configuring access point...");
+  WiFi.mode(WIFI_AP);
+  WiFi.softAP(ssid, password);
+  WiFi.hostname(Hostname);
+
+  IPAddress myIP = WiFi.softAPIP();
+  Serial.print("AP IP address: ");
+  Serial.println(myIP);
+  server.on("/", handleRoot);
+  server.begin();
+  Serial.println("HTTP server started");
 }
